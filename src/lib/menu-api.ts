@@ -1,4 +1,4 @@
-import type { Locale, MenuData, MenuItem } from '@/components/menu-data';
+import type { Locale, MenuData, MenuItem } from "@/components/menu-data";
 
 type ApiItem = {
   id: number;
@@ -50,33 +50,42 @@ type ApiResponse = {
   data: ApiMenu;
 };
 
-function getBadges(item: ApiItem): MenuItem['badges'] {
-  const badges: NonNullable<MenuItem['badges']> = [];
-  if (item.isPopular) badges.push('popular');
-  if (item.isNew) badges.push('new');
-  if (item.isVegan) badges.push('vegan');
+function getBadges(item: ApiItem): MenuItem["badges"] {
+  const badges: NonNullable<MenuItem["badges"]> = [];
+  if (item.isPopular) badges.push("popular");
+  if (item.isNew) badges.push("new");
+  if (item.isVegan) badges.push("vegan");
   return badges.length > 0 ? badges : undefined;
 }
 
-export async function getMenuBySlug(slug: string): Promise<MenuData> {
-  const apiUrl = process.env.API_URL ?? 'http://localhost:4000';
-  const response = await fetch(`${apiUrl}/api/menus/${slug}`, { cache: 'no-store' });
+export async function getMenuBySlug(slug: string): Promise<MenuData | null> {
+  const apiUrl = process.env.API_URL ?? "http://localhost:4000";
+  const response = await fetch(`${apiUrl}/api/menus/${slug}`, {
+    cache: "no-store",
+  });
 
+  if (response.status === 404) return null;
   if (!response.ok) {
     throw new Error(`Menu API returned ${response.status}`);
   }
 
-  const { data } = await response.json() as ApiResponse;
-  const menuItems = data.categories.flatMap((category) => category.items.map((item) => ({
-    id: item.id,
-    categoryId: category.id,
-    name: { uk: item.nameUk, pl: item.namePl, en: item.nameEn },
-    description: { uk: item.descriptionUk, pl: item.descriptionPl, en: item.descriptionEn },
-    price: Number(item.price),
-    oldPrice: item.oldPrice ? Number(item.oldPrice) : undefined,
-    image: item.imageUrl,
-    badges: getBadges(item),
-  })));
+  const { data } = (await response.json()) as ApiResponse;
+  const menuItems = data.categories.flatMap((category) =>
+    category.items.map((item) => ({
+      id: item.id,
+      categoryId: category.id,
+      name: { uk: item.nameUk, pl: item.namePl, en: item.nameEn },
+      description: {
+        uk: item.descriptionUk,
+        pl: item.descriptionPl,
+        en: item.descriptionEn,
+      },
+      price: Number(item.price),
+      oldPrice: item.oldPrice ? Number(item.oldPrice) : undefined,
+      image: item.imageUrl,
+      badges: getBadges(item),
+    })),
+  );
 
   return {
     cafe: {
@@ -84,7 +93,13 @@ export async function getMenuBySlug(slug: string): Promise<MenuData> {
       name: data.name,
       description: data.description,
       location: data.address,
-      currency: data.currency === 'PLN' ? 'zł' : data.currency,
+      currency:
+        (
+          { PLN: "zł", EUR: "€", USD: "$", UAH: "₴", CZK: "Kč" } as Record<
+            string,
+            string
+          >
+        )[data.currency] ?? data.currency,
       primaryColor: data.primary_color,
       logoUrl: data.logo_url,
       rating: String(data.rating),
@@ -100,10 +115,17 @@ export async function getMenuBySlug(slug: string): Promise<MenuData> {
       defaultLocale: data.default_locale,
     },
     categories: [
-      { id: 'popular', label: { uk: 'Популярне', pl: 'Popularne', en: 'Popular' } },
+      {
+        id: "popular",
+        label: { uk: "Популярне", pl: "Popularne", en: "Popular" },
+      },
       ...data.categories.map((category) => ({
         id: category.id,
-        label: { uk: category.name_uk, pl: category.name_pl, en: category.name_en },
+        label: {
+          uk: category.name_uk,
+          pl: category.name_pl,
+          en: category.name_en,
+        },
       })),
     ],
     menuItems,
