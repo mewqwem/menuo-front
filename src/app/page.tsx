@@ -1,69 +1,11 @@
-import Image from "next/image";
+import Link from 'next/link';
+
+const features = [
+  ['01', 'Меню без друку', 'Змінюйте ціни, позиції та знижки — QR-код залишається тим самим.'],
+  ['02', 'Три мови', 'Українська, польська й англійська. Власник сам обирає потрібні мови.'],
+  ['03', 'Ваш стиль', 'Власний колір, фото, категорії та валюта для кожного закладу.'],
+];
 
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+  return <main className="overflow-hidden bg-[#f4f0e8] text-[#1c2924]"><header className="relative z-10"><div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-4 sm:px-6"><Link className="font-serif text-2xl font-bold" href="/">Menuo<span className="text-[#bb7d3b]">.</span></Link><nav className="flex items-center gap-2"><Link className="hidden px-4 py-2 text-sm font-semibold sm:block" href="/login">Увійти</Link><Link className="rounded-full bg-[#1f392d] px-5 py-2.5 text-sm font-semibold text-white" href="/register">Створити меню</Link></nav></div></header><section className="relative mx-auto grid min-h-[680px] max-w-6xl items-center gap-12 px-4 pb-20 pt-10 sm:px-6 lg:grid-cols-[1.05fr_.95fr]"><div><p className="text-xs font-bold uppercase tracking-[.24em] text-[#a36f38]">QR-меню для сучасних закладів</p><h1 className="mt-6 max-w-3xl font-serif text-5xl leading-[.96] tracking-[-.04em] sm:text-7xl">Меню, яке завжди актуальне.</h1><p className="mt-7 max-w-xl text-base leading-7 text-black/55 sm:text-lg">Створіть красиве цифрове меню для кафе, ресторану чи пекарні. Гості сканують QR-код, а ви керуєте всім в особистому кабінеті.</p><div className="mt-9 flex flex-wrap gap-3"><Link className="rounded-full bg-[#1f392d] px-7 py-4 text-sm font-semibold text-white" href="/register">Створити своє меню →</Link><Link className="rounded-full border border-black/15 bg-white/50 px-7 py-4 text-sm font-semibold" href="/moka">Подивитись приклад</Link></div><p className="mt-5 text-xs text-black/35">Без банківської картки · налаштування за кілька хвилин</p></div><div className="relative mx-auto w-full max-w-md"><div className="absolute -inset-16 rounded-full bg-[#d99b52]/20 blur-3xl"/><div className="relative rotate-2 rounded-[2.5rem] bg-[#1f392d] p-4 shadow-[0_35px_100px_rgba(31,57,45,.28)]"><div className="rounded-[1.8rem] bg-[#fbf7ef] p-6"><div className="flex items-center justify-between"><div><strong className="font-serif text-xl">MOKA</strong><p className="text-[9px] uppercase tracking-widest text-black/40">specialty coffee</p></div><span className="rounded-full bg-[#1f392d] px-3 py-2 text-[9px] text-white">UA · PL · EN</span></div><div className="mt-8 rounded-full border border-black/10 bg-white px-4 py-3 text-xs text-black/35">Пошук у меню…</div><div className="mt-5 flex gap-2"><span className="rounded-full bg-[#1f392d] px-4 py-2 text-[10px] text-white">Популярне</span><span className="rounded-full bg-white px-4 py-2 text-[10px]">Кава</span></div><div className="mt-5 grid grid-cols-2 gap-3">{['Фісташковий лате', 'Матча полуниця', 'Сирники', 'Чизкейк'].map((item, index) => <div className="rounded-2xl bg-white p-3" key={item}><div className={`aspect-[4/3] rounded-xl ${index % 2 ? 'bg-[#dac9b3]' : 'bg-[#9cad93]'}`}/><strong className="mt-3 block font-serif text-sm">{item}</strong><span className="mt-1 block text-[10px] text-black/40">від 22 zł</span></div>)}</div></div></div></div></section><section className="bg-white py-20"><div className="mx-auto max-w-6xl px-4 sm:px-6"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#a36f38]">Все необхідне</p><h2 className="mt-4 max-w-2xl font-serif text-4xl sm:text-5xl">Від першої страви до QR-коду на столику</h2><div className="mt-12 grid gap-px overflow-hidden rounded-3xl border border-black/10 bg-black/10 md:grid-cols-3">{features.map(([number, title, text]) => <article className="bg-white p-7 sm:p-9" key={number}><span className="text-xs font-bold text-[#bb7d3b]">{number}</span><h3 className="mt-8 font-serif text-2xl">{title}</h3><p className="mt-3 text-sm leading-6 text-black/50">{text}</p></article>)}</div></div></section><section className="bg-[#1f392d] px-4 py-20 text-center text-white"><h2 className="font-serif text-4xl sm:text-6xl">Ваше меню вже сьогодні.</h2><p className="mx-auto mt-5 max-w-xl text-sm leading-6 text-white/60">Створіть акаунт, додайте заклад і завантажте готовий QR-код.</p><Link className="mt-8 inline-block rounded-full bg-[#e8b878] px-7 py-4 text-sm font-semibold text-[#1f392d]" href="/register">Почати безкоштовно</Link></section><footer className="bg-[#17251f] px-4 py-8 text-white/50"><div className="mx-auto flex max-w-6xl items-center justify-between"><span className="font-serif text-xl text-white">Menuo.</span><span className="text-xs">Digital menus made simple</span></div></footer></main>;
 }
