@@ -27,6 +27,7 @@ async function proxyRequest(request: Request, context: RouteContext) {
   headers.delete("host");
   headers.delete("content-length");
   headers.delete("origin");
+  headers.set("accept-encoding", "identity");
 
   try {
     const upstreamResponse = await fetch(targetUrl, {
@@ -47,6 +48,13 @@ async function proxyRequest(request: Request, context: RouteContext) {
     responseHeaders.delete("access-control-allow-headers");
     responseHeaders.delete("access-control-allow-methods");
     responseHeaders.delete("access-control-allow-origin");
+    // fetch() transparently decompresses upstream responses. Forwarding the old
+    // encoding or byte length makes browsers try to decode the JSON a second time.
+    responseHeaders.delete("content-encoding");
+    responseHeaders.delete("content-length");
+    responseHeaders.delete("transfer-encoding");
+    responseHeaders.delete("connection");
+    responseHeaders.delete("keep-alive");
 
     return new Response(upstreamResponse.body, {
       status: upstreamResponse.status,
