@@ -9,6 +9,7 @@ import RestaurantSettings from "./restaurant-settings";
 type Locale = "uk" | "pl" | "en";
 type AdminItem = {
   id: number;
+  categoryId?: string;
   nameUk: string;
   namePl: string;
   nameEn: string;
@@ -78,10 +79,26 @@ const emptyItem = {
   descriptionPl: "",
   descriptionEn: "",
   price: "",
+  oldPrice: "",
   imageUrl: "",
   isPopular: false,
+  isNew: false,
+  isVegan: false,
+  isAvailable: true,
 };
 const emptyCategory = { nameUk: "", namePl: "", nameEn: "" };
+
+function ButtonSpinner({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center justify-center gap-2" role="status">
+      <span
+        className="size-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
+        aria-hidden="true"
+      />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
 
 export default function AdminDashboard({
   apiUrl,
@@ -100,6 +117,13 @@ export default function AdminDashboard({
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState(emptyItem);
+  const [editError, setEditError] = useState("");
+  const [pendingItemAction, setPendingItemAction] = useState<{
+    id: number;
+    action: "availability" | "popular" | "delete" | "edit";
+  } | null>(null);
   const [message, setMessage] = useState("");
   const [section, setSection] = useState<"overview" | "menu" | "settings">(
     "menu",
@@ -107,7 +131,11 @@ export default function AdminDashboard({
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [pendingSection, setPendingSection] = useState<"overview" | "menu" | null>(null);
   const items = menu.categories.flatMap((category) =>
-    category.items.map((item) => ({ ...item, categoryName: category.name_uk })),
+    category.items.map((item) => ({
+      ...item,
+      categoryId: category.id,
+      categoryName: category.name_uk,
+    })),
   );
   const currency = currencySymbols[menu.currency] ?? menu.currency;
   const themeStyle = { "--brand": menu.primary_color } as CSSProperties;
@@ -146,7 +174,7 @@ export default function AdminDashboard({
     return result.data as AdminMenu;
   }
 
-  async function uploadPhoto(file: File) {
+  async function uploadPhoto(file: File, target: "create" | "edit" = "create") {
     setUploading(true);
     setMessage("");
     try {
@@ -160,7 +188,11 @@ export default function AdminDashboard({
       const result = await response.json();
       if (!response.ok)
         throw new Error(result.message ?? "Не вдалося завантажити фото");
-      setForm((current) => ({ ...current, imageUrl: result.data.imageUrl }));
+      const setTargetForm = target === "edit" ? setEditForm : setForm;
+      setTargetForm((current) => ({
+        ...current,
+        imageUrl: result.data.imageUrl,
+      }));
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Помилка завантаження",
@@ -230,7 +262,11 @@ export default function AdminDashboard({
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, price: Number(form.price) }),
+          body: JSON.stringify({
+            ...form,
+            price: Number(form.price),
+            oldPrice: form.oldPrice ? Number(form.oldPrice) : null,
+          }),
         },
       );
       if (!response.ok) throw new Error("Не вдалося додати позицію");
@@ -245,34 +281,108 @@ export default function AdminDashboard({
     }
   }
 
-  async function updateItem(id: number, updates: Partial<AdminItem>) {
+  async function updateItem(
+    id: number,
+    updates: Partial<AdminItem>,
+    action: "availability" | "popular",
+  ) {
     setMessage("");
-    const response = await fetch(`${apiUrl}/api/admin/items/${id}`, {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
+    setPendingItemAction({ id, action });
+    try {
+      const response = await fetch(`${apiUrl}/api/admin/items/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) throw new Error("Не вдалося змінити позицію");
+      await refreshMenu();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Сталася помилка");
+    } finally {
+      setPendingItemAction(null);
+    }
+  }
+
+  function openEditItem(item: AdminItem & { categoryName: string }) {
+    setEditError("");
+    setEditForm({
+      categoryId: item.categoryId ?? "",
+      nameUk: item.nameUk,
+      namePl: item.namePl,
+      nameEn: item.nameEn,
+      descriptionUk: item.descriptionUk,
+      descriptionPl: item.descriptionPl,
+      descriptionEn: item.descriptionEn,
+      price: String(item.price),
+      oldPrice: item.oldPrice === null ? "" : String(item.oldPrice),
+      imageUrl: item.imageUrl,
+      isPopular: item.isPopular,
+      isNew: item.isNew,
+      isVegan: item.isVegan,
+      isAvailable: item.isAvailable,
     });
-    if (!response.ok) {
-      setMessage("Не вдалося змінити позицію");
+    setEditingItemId(item.id);
+  }
+
+  async function saveEditedItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (editingItemId === null) return;
+
+    const price = Number(editForm.price);
+    const oldPrice = editForm.oldPrice ? Number(editForm.oldPrice) : null;
+    if (oldPrice !== null && oldPrice <= price) {
+      setEditError("Стара ціна має бути більшою за актуальну.");
       return;
     }
-    await refreshMenu();
+
+    setEditError("");
+    setPendingItemAction({ id: editingItemId, action: "edit" });
+    try {
+      const response = await fetch(
+        `${apiUrl}/api/admin/items/${editingItemId}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...editForm,
+            price,
+            oldPrice,
+          }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message ?? "Не вдалося зберегти позицію");
+      }
+      await refreshMenu();
+      setEditingItemId(null);
+      setMessage("Позицію оновлено");
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Сталася помилка");
+    } finally {
+      setPendingItemAction(null);
+    }
   }
 
   async function removeItem(id: number) {
     if (!window.confirm("Видалити цю позицію без можливості відновлення?"))
       return;
-    const response = await fetch(`${apiUrl}/api/admin/items/${id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (!response.ok) {
-      setMessage("Не вдалося видалити позицію");
-      return;
+    setPendingItemAction({ id, action: "delete" });
+    try {
+      const response = await fetch(`${apiUrl}/api/admin/items/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Не вдалося видалити позицію");
+      await refreshMenu();
+      setMessage("Позицію видалено");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Сталася помилка");
+    } finally {
+      setPendingItemAction(null);
     }
-    await refreshMenu();
-    setMessage("Позицію видалено");
   }
 
   return (
@@ -660,14 +770,14 @@ export default function AdminDashboard({
                 </form>
               ) : null}
               <div className="mt-8 overflow-hidden rounded-3xl border border-black/10 bg-white">
-                <div className="hidden grid-cols-[1fr_130px_190px] border-b border-black/10 bg-[#faf9f6] px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-black/40 sm:grid">
+                <div className="hidden grid-cols-[1fr_110px_240px] border-b border-black/10 bg-[#faf9f6] px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-black/40 sm:grid">
                   <span>Позиція</span>
                   <span>Ціна</span>
                   <span>Керування</span>
                 </div>
                 {items.map((item) => (
                   <article
-                    className={`grid gap-4 border-b border-black/8 p-4 last:border-0 sm:grid-cols-[1fr_130px_190px] sm:items-center sm:px-6 ${item.isAvailable ? "" : "opacity-50"}`}
+                    className={`grid gap-4 border-b border-black/8 p-4 last:border-0 sm:grid-cols-[1fr_110px_240px] sm:items-center sm:px-6 ${item.isAvailable ? "" : "opacity-50"}`}
                     key={item.id}
                   >
                     <div className="flex min-w-0 items-center gap-4">
@@ -696,18 +806,27 @@ export default function AdminDashboard({
                     </strong>
                     <div className="flex flex-wrap gap-2">
                       <button
-                        className="rounded-full border border-black/10 px-3 py-2 text-[11px]"
+                        className="min-w-20 rounded-full border border-black/10 px-3 py-2 text-[11px] disabled:cursor-wait disabled:opacity-60"
+                        disabled={pendingItemAction?.id === item.id}
                         type="button"
                         onClick={() =>
                           updateItem(item.id, {
                             isAvailable: !item.isAvailable,
-                          })
+                          }, "availability")
                         }
                       >
-                        {item.isAvailable ? "Приховати" : "Показати"}
+                        {pendingItemAction?.id === item.id &&
+                        pendingItemAction.action === "availability" ? (
+                          <ButtonSpinner label="Змінюємо видимість" />
+                        ) : item.isAvailable ? (
+                          "Приховати"
+                        ) : (
+                          "Показати"
+                        )}
                       </button>
                       <button
-                        className={`rounded-full border px-3 py-2 text-[11px] font-bold ${item.isPopular ? "border-amber-400 bg-amber-100 text-amber-700" : "border-black/10 text-black/35"}`}
+                        className={`grid min-h-8 min-w-9 place-items-center rounded-full border px-3 py-2 text-[11px] font-bold disabled:cursor-wait disabled:opacity-60 ${item.isPopular ? "border-amber-400 bg-amber-100 text-amber-700" : "border-black/10 text-black/35"}`}
+                        disabled={pendingItemAction?.id === item.id}
                         type="button"
                         aria-pressed={item.isPopular}
                         aria-label={
@@ -716,17 +835,41 @@ export default function AdminDashboard({
                             : "Додати до хітів"
                         }
                         onClick={() =>
-                          updateItem(item.id, { isPopular: !item.isPopular })
+                          updateItem(
+                            item.id,
+                            { isPopular: !item.isPopular },
+                            "popular",
+                          )
                         }
                       >
-                        ★
+                        {pendingItemAction?.id === item.id &&
+                        pendingItemAction.action === "popular" ? (
+                          <ButtonSpinner label="Оновлюємо хіт" />
+                        ) : (
+                          "★"
+                        )}
                       </button>
                       <button
-                        className="rounded-full border border-red-200 px-3 py-2 text-[11px] text-red-700"
+                        className="grid min-h-8 min-w-9 place-items-center rounded-full border border-black/10 px-3 py-2 text-sm hover:bg-black/5 disabled:opacity-50"
+                        disabled={pendingItemAction?.id === item.id}
+                        type="button"
+                        aria-label={`Редагувати ${item.nameUk}`}
+                        onClick={() => openEditItem(item)}
+                      >
+                        ✎
+                      </button>
+                      <button
+                        className="min-w-16 rounded-full border border-red-200 px-3 py-2 text-[11px] text-red-700 disabled:cursor-wait disabled:opacity-60"
+                        disabled={pendingItemAction?.id === item.id}
                         type="button"
                         onClick={() => removeItem(item.id)}
                       >
-                        Видалити
+                        {pendingItemAction?.id === item.id &&
+                        pendingItemAction.action === "delete" ? (
+                          <ButtonSpinner label="Видаляємо позицію" />
+                        ) : (
+                          "Видалити"
+                        )}
                       </button>
                     </div>
                   </article>
@@ -736,6 +879,201 @@ export default function AdminDashboard({
           ) : null}
         </div>
       </div>
+      {editingItemId !== null ? (
+        <div
+          className="fixed inset-0 z-[80] grid place-items-center bg-black/50 p-3 backdrop-blur-sm sm:p-6"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              pendingItemAction?.action !== "edit"
+            ) {
+              setEditingItemId(null);
+            }
+          }}
+        >
+          <form
+            className="section-enter max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-7"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-item-title"
+            onSubmit={saveEditedItem}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.18em] text-black/40">
+                  Позиція меню
+                </p>
+                <h2 className="mt-2 font-serif text-3xl" id="edit-item-title">
+                  Редагування
+                </h2>
+              </div>
+              <button
+                className="grid size-10 shrink-0 place-items-center rounded-full bg-black/5 text-xl hover:bg-black/10 disabled:opacity-40"
+                disabled={pendingItemAction?.action === "edit"}
+                type="button"
+                aria-label="Закрити редагування"
+                onClick={() => setEditingItemId(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2 text-xs font-semibold">
+                Категорія
+                <select
+                  className="h-11 rounded-xl border border-black/15 bg-white px-3 text-sm font-normal"
+                  required
+                  value={editForm.categoryId}
+                  onChange={(event) =>
+                    setEditForm({ ...editForm, categoryId: event.target.value })
+                  }
+                >
+                  {menu.categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name_uk}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-xs font-semibold">
+                Нове фото
+                <input
+                  className="h-11 rounded-xl border border-black/15 p-2 text-xs font-normal"
+                  accept="image/jpeg,image/png,image/webp"
+                  type="file"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void uploadPhoto(file, "edit");
+                  }}
+                />
+                <span className="font-normal text-black/40">
+                  {uploading ? "Завантажуємо…" : "Залиште порожнім, щоб не змінювати"}
+                </span>
+              </label>
+              <label className="grid gap-2 text-xs font-semibold">
+                Ціна, {currency}
+                <input
+                  className="h-11 rounded-xl border border-black/15 px-3 text-sm font-normal"
+                  min="0"
+                  max="99999999.99"
+                  step="0.01"
+                  required
+                  type="number"
+                  value={editForm.price}
+                  onChange={(event) =>
+                    setEditForm({ ...editForm, price: event.target.value })
+                  }
+                />
+              </label>
+              <label className="grid gap-2 text-xs font-semibold">
+                Стара ціна, {currency} · необов’язково
+                <input
+                  className="h-11 rounded-xl border border-black/15 px-3 text-sm font-normal"
+                  min="0"
+                  max="99999999.99"
+                  step="0.01"
+                  type="number"
+                  value={editForm.oldPrice}
+                  onChange={(event) =>
+                    setEditForm({ ...editForm, oldPrice: event.target.value })
+                  }
+                />
+              </label>
+              {menu.enabled_locales.map((locale) => {
+                const fields = localeFields[locale];
+                return (
+                  <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" key={locale}>
+                    <label className="grid gap-2 text-xs font-semibold">
+                      Назва · {fields.label}
+                      <input
+                        className="h-11 rounded-xl border border-black/15 px-3 text-sm font-normal"
+                        autoFocus={locale === menu.default_locale}
+                        maxLength={140}
+                        required={locale === menu.default_locale}
+                        value={editForm[fields.name]}
+                        onChange={(event) =>
+                          setEditForm({
+                            ...editForm,
+                            [fields.name]: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="grid gap-2 text-xs font-semibold">
+                      Опис · {fields.label}
+                      <textarea
+                        className="min-h-24 rounded-xl border border-black/15 p-3 text-sm font-normal"
+                        maxLength={2000}
+                        value={editForm[fields.description]}
+                        onChange={(event) =>
+                          setEditForm({
+                            ...editForm,
+                            [fields.description]: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+
+            <fieldset className="mt-5 flex flex-wrap gap-4" disabled={pendingItemAction?.action === "edit"}>
+              <legend className="sr-only">Позначки позиції</legend>
+              {([
+                ["isPopular", "Хіт ★"],
+                ["isNew", "Новинка"],
+                ["isVegan", "Веганське"],
+                ["isAvailable", "Видима в меню"],
+              ] as const).map(([field, label]) => (
+                <label className="flex items-center gap-2 text-sm" key={field}>
+                  <input
+                    checked={editForm[field]}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setEditForm({ ...editForm, [field]: event.target.checked })
+                    }
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+
+            {editError ? (
+              <p className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                {editError}
+              </p>
+            ) : null}
+
+            <div className="mt-7 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <button
+                className="pressable rounded-full bg-[var(--brand)] px-6 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-50"
+                disabled={pendingItemAction?.action === "edit" || uploading || !editForm.imageUrl}
+                type="submit"
+              >
+                {pendingItemAction?.action === "edit" ? (
+                  <span className="inline-flex items-center gap-2">
+                    <ButtonSpinner label="Зберігаємо зміни" />
+                    Зберігаємо…
+                  </span>
+                ) : (
+                  "Зберегти зміни"
+                )}
+              </button>
+              <button
+                className="rounded-full px-6 py-3 text-sm text-black/55 hover:bg-black/5 disabled:opacity-40"
+                disabled={pendingItemAction?.action === "edit"}
+                type="button"
+                onClick={() => setEditingItemId(null)}
+              >
+                Скасувати
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
       {pendingSection ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingSection(null); }}>
           <div className="section-enter w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="unsaved-title">
